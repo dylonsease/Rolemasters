@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body, status
+from fastapi.responses import Response, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import List
 from pymongo import MongoClient
@@ -7,10 +9,7 @@ from urllib.parse import quote_plus
 from fastapi.middleware.cors import CORSMiddleware
 
 
-origins = [
-    "http://0.0.0.0:3000",
-    "http://localhost:3000"
-]
+origins = ["http://0.0.0.0:3000", "http://localhost:3000"]
 
 
 app = FastAPI()
@@ -32,12 +31,13 @@ def get_client():
     global mongo_client
     if bool(mongo_client):
         return mongo_client
-    host = os.getenv('MONGODB_HOST', '')
-    username = os.getenv('MONGODB_USER', '')
-    password = os.getenv('MONGODB_PASSWORD', '')
-    port = int(os.getenv('MONGODB_PORT', 27017))
-    endpoint = 'mongodb://{0}:{1}@{2}'.format(quote_plus(username),
-                                              quote_plus(password), host)
+    host = os.getenv("MONGODB_HOST", "")
+    username = os.getenv("MONGODB_USER", "")
+    password = os.getenv("MONGODB_PASSWORD", "")
+    port = int(os.getenv("MONGODB_PORT", 27017))
+    endpoint = "mongodb://{0}:{1}@{2}".format(
+        quote_plus(username), quote_plus(password), host
+    )
     mongo_client = MongoClient(endpoint, port)
     return mongo_client
 
@@ -51,14 +51,14 @@ class ComicIssue(BaseModel):
     publisher_name: str
 
 
-@app.get('/')
+@app.get("/")
 async def root():
-    return {'message': 'Hello World'}
+    return {"message": "Hello World"}
 
 
-@app.get('/comics/{title}/{issue_number}', response_model=List[ComicIssue])
-async def get_comic_issues(title: str, issue_number: str): 
-    criteria = {'series_name': title, 'number': issue_number}
+@app.get("/comics/{title}/{issue_number}", response_model=List[ComicIssue])
+async def get_comic_issues(title: str, issue_number: str):
+    criteria = {"series_name": title, "number": issue_number}
     client = get_client()
     db = client.farmdemo
     issues = db.issues.find(criteria)
@@ -66,3 +66,13 @@ async def get_comic_issues(title: str, issue_number: str):
     for issue in issues:
         data.append(ComicIssue(**issue))
     return data
+
+
+@app.post("/comics", response_model=List[ComicIssue])
+async def post_comic_issues(comic: ComicIssue = Body(...)):
+    comic = jsonable_encoder(comic)
+    client = get_client()
+    db = client.farmdemo
+    new_issue = db.issues.insert_one(comic)
+    response_issue = db.issues.find_one({"_id": new_issue.inserted_id})
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_issue)
