@@ -1,4 +1,0 @@
-db.createUser({user:"root", pwd:"Ensure-Pushpin-Outshine9", roles:[{role:"root", db:"admin"}]})
-use admin
-help
-?
